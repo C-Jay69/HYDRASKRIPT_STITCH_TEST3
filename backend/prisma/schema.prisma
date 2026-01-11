@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Profile {
+  id               String           @id @default(cuid())
+  subscriptionTier SubscriptionTier @default(Starter)
+  creditBalance    Int              @default(0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  
+  universes        Universe[]
+  styles           Style[]
+  books            Book[]
+  chapters         Chapter[]
+  
+  @@map("profiles")
+}
+
+model Universe {
+  id              String   @id @default(cuid())
+  ownerId         String
+  title           String
+  description     String?
+  globalLore      Json     // Story Bible lore
+  globalCharacters Json    // Character states
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  owner           Profile  @relation(fields: [ownerId], references: [id])
+  books           Book[]
+  
+  @@map("universes")
+}
+
+model Book {
+  id            String       @id @default(cuid())
+  universeId    String
+  ownerId       String
+  title         String
+  targetLength  Int          // words
+  genre         String
+  styleId       String?
+  currentStatus BookStatus   @default(Draft)
+  metadata      Json?        // Additional book metadata
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  
+  universe      Universe     @relation(fields: [universeId], references: [id])
+  owner         Profile      @relation(fields: [ownerId], references: [id])
+  chapters      Chapter[]
+  style         Style?       @relation(fields: [styleId], references: [id])
+  
+  @@map("books")
+}
+
+model Chapter {
+  id            String   @id @default(cuid())
+  bookId        String
+  ownerId       String
+  chapterIndex  Int
+  title         String?
+  content       String   // Generated text
+  sequenceData  Json     // Timeline/continuity data
+  wordCount     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  book          Book     @relation(fields: [bookId], references: [id])
+  owner         Profile  @relation(fields: [ownerId], references: [id])
+  
+  @@unique([bookId, chapterIndex])
+  @@map("chapters")
+}
+
+model Style {
+  id               String   @id @default(cuid())
+  ownerId          String
+  name             String
+  description      String?
+  trainingDataRef  String?
+  structureMetrics Json     // {sentenceLengthAvg, complexityScore}
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  owner            Profile  @relation(fields: [ownerId], references: [id])
+  books            Book[]
+  
+  @@map("styles")
+}
+
+model GenerationQueue {
+  id          String           @id @default(cuid())
+  profileId   String
+  bookId      String?
+  chapterId   String?
+  taskType    GenerationTaskType
+  status      QueueStatus      @default(Pending)
+  creditsCost Int
+  priority    Int              @default(0)
+  metadata    Json?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  startedAt   DateTime?
+  completedAt DateTime?
+  error       String?
+  
+  @@map("generation_queue")
+}
+
+model CreditTransaction {
+  id          String              @id @default(cuid())
+  profileId   String
+  amount      Int
+  type        CreditTransactionType
+  description String?
+  metadata    Json?
+  createdAt   DateTime          @default(now())
+  
+  @@map("credit_transactions")
+}
+
+enum SubscriptionTier {
+  Starter
+  Author
+  Publisher
+  Studio
+}
+
+enum BookStatus {
+  Draft
+  Queued
+  Generating
+  Complete
+  Failed
+}
+
+enum GenerationTaskType {
+  Book
+  Chapter
+  StyleTraining
+  Audiobook
+  CoverArt
+}
+
+enum QueueStatus {
+  Pending
+  Processing
+  Completed
+  Failed
+  Cancelled
+}
+
+enum CreditTransactionType {
+  Purchase
+  Generation
+  Refund
+  Bonus
+}
